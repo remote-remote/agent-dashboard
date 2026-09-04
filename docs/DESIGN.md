@@ -3,7 +3,9 @@
 A local-only web app that reads Claude Code and pi session transcripts off the
 host filesystem and shows session statistics, live-updating as sessions work.
 
-Status: design agreed, not yet implemented.
+Status: implemented, all six slices. Where the data on disk contradicted this
+document the code follows the data; those corrections are marked **[corrected]**
+below and explained in [SCHEMA-NOTES.md](SCHEMA-NOTES.md).
 
 ## Purpose
 
@@ -81,7 +83,7 @@ These drive most of the design. Neither harness is a superset of the other.
 | Session title | `ai-title` | none |
 | Git branch | yes | no |
 | Provider | Anthropic only | multi-provider |
-| Subagents | inline, `isSidechain: true` | none observed |
+| Subagents | **[corrected]** separate `<sessionId>/subagents/*.jsonl` files, not inline | none observed |
 | Session id | UUID | UUIDv7, embedded in filename |
 
 ### Gotchas discovered while spiking
@@ -101,11 +103,24 @@ Recorded because each one cost time to find.
 - **`pgrep -x claude` is unreliable here.** It missed a session that `kill -0`
   and `ps` both confirmed alive. Use `process.kill(pid, 0)`.
 - **`totalCostUSD` is 0, not missing.** Do not treat it as a real measurement.
+- **[corrected] One response is written as several records**, one per content
+  block, each repeating the whole `usage` object. Summing them inflated output
+  tokens by 126% and cache reads by 93% across the corpus. Usage is charged once
+  per `message.id`; those records are always contiguous, which is what lets the
+  index dedup with O(1) state. Claude's own `usage-data/session-meta` double
+  counts this way, so it cannot be used as a reference for token totals.
+- **[corrected] The registry writes `procStart` in UTC** but in `ps lstart`
+  format, while `ps` prints local time. Comparing the two as strings never
+  matches and resolves every live session to `done`.
+- **[corrected] pi's `usage.cacheWrite1h` is a breakdown of `cacheWrite`**, not
+  an addition to it: `input + output + cacheRead + cacheWrite` already equals
+  `totalTokens`.
 
 ## Model
 
-One row is a **session**. Claude sidechain (subagent) turns roll into their
-parent's totals and are expandable in the detail view; pi has no subagents.
+One row is a **session**. Claude subagent turns are kept in a separate
+`sidechain` bucket - tokens, tools and errors alike - shown alongside the
+parent's own totals and expandable in the detail view; pi has no subagents.
 
 Composite key: `` `${harness}:${sessionId}` ``. pi's session id is recoverable
 from its filename (`<ISO>_<uuid>.jsonl`), so both harnesses key the same way.
@@ -124,12 +139,13 @@ cwd, project, gitBranch?, title?
 startedAt, endedAt, durationMs
 models: Set<modelId>, provider?, effort?
 tokens: { input, output, cacheRead, cacheWrite, thinking }
-cost: { measured?: number, imputed?: number }
+tokensByModel: Record<modelId, tokens>      // so a mixed session prices correctly
+cost: { measured?: number, imputed?: number, unpricedModels?: string[] }
 tools: Record<toolName, count>, toolErrors
 linesAdded, linesRemoved, filesTouched
 turnCount, userPromptCount, interruptions
 status, statusSource
-sidechain: { turnCount, tokens }        // Claude only
+sidechain: { turnCount, tokens, tools, toolErrors }   // Claude only
 ```
 
 ## Status
