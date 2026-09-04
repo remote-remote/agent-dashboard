@@ -1,4 +1,5 @@
 import { FilterBar } from "@/components/FilterBar";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { RollupStrip } from "@/components/RollupStrip";
 import { SessionTable } from "@/components/SessionTable";
 import { getReadyIndex } from "@/lib/index-singleton";
@@ -37,6 +38,7 @@ export default async function Page({
         <span className="sub">
           {all.length} sessions indexed · {totals.working} working now
         </span>
+        <LiveRefresh />
       </header>
 
       {parseErrors > 0 && (
