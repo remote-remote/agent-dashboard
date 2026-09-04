@@ -1,6 +1,7 @@
 import {
   chargeUsage,
   countTool,
+  countToolError,
   noteTimestamp,
   type Accumulator,
 } from "./accumulator.ts";
@@ -119,7 +120,7 @@ function foldPiMessage(acc: Accumulator, message: Record<string, unknown>): void
     }
 
     case "toolResult": {
-      if (message.isError === true) acc.toolErrors += 1;
+      if (message.isError === true) countToolError(acc);
       return;
     }
 

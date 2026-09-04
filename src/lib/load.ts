@@ -12,6 +12,7 @@ export function foldInto(
   buffer: Buffer,
   isSidechainFile = false,
 ): number {
+  acc.sidechainMode = isSidechainFile;
   const fold =
     acc.harness === "claude"
       ? (r: unknown) => foldClaudeRecord(acc, r, isSidechainFile)

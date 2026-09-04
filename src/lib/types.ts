@@ -21,6 +21,8 @@ export interface CostBreakdown {
 export interface SidechainTotals {
   turnCount: number;
   tokens: TokenCounts;
+  tools: Record<string, number>;
+  toolErrors: number;
 }
 
 export interface SessionRollup {

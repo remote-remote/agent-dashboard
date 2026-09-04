@@ -1,6 +1,7 @@
 import {
   chargeUsage,
   countTool,
+  countToolError,
   noteTimestamp,
   type Accumulator,
 } from "./accumulator.ts";
@@ -126,7 +127,7 @@ export function foldClaudeRecord(
           const b = asRecord(block);
           if (b?.type !== "tool_result") continue;
           sawToolResult = true;
-          if (b.is_error === true) acc.toolErrors += 1;
+          if (b.is_error === true) countToolError(acc);
         }
       }
 

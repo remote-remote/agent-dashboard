@@ -43,6 +43,16 @@ export interface Accumulator {
 
   sidechainTurnCount: number;
   sidechainTokens: TokenCounts;
+  sidechainTools: Map<string, number>;
+  sidechainToolErrors: number;
+
+  /**
+   * True while folding a subagent transcript. Subagent activity is attributed
+   * to the sidechain totals rather than the parent's, so tokens, tools and
+   * errors are all split the same way and the rollup agrees with the detail
+   * view, which parses the two sets of files separately.
+   */
+  sidechainMode: boolean;
 
   parseErrors: number;
 
@@ -81,6 +91,9 @@ export function createAccumulator(
     interruptions: 0,
     sidechainTurnCount: 0,
     sidechainTokens: emptyTokens(),
+    sidechainTools: new Map(),
+    sidechainToolErrors: 0,
+    sidechainMode: false,
     parseErrors: 0,
   };
 }
@@ -141,7 +154,13 @@ export function noteTimestamp(acc: Accumulator, ts: unknown): void {
 
 export function countTool(acc: Accumulator, name: unknown): void {
   if (typeof name !== "string" || name === "") return;
-  acc.tools.set(name, (acc.tools.get(name) ?? 0) + 1);
+  const bucket = acc.sidechainMode ? acc.sidechainTools : acc.tools;
+  bucket.set(name, (bucket.get(name) ?? 0) + 1);
+}
+
+export function countToolError(acc: Accumulator): void {
+  if (acc.sidechainMode) acc.sidechainToolErrors += 1;
+  else acc.toolErrors += 1;
 }
 
 export function finalize(
@@ -181,6 +200,10 @@ export function finalize(
     sidechain: {
       turnCount: acc.sidechainTurnCount,
       tokens: { ...acc.sidechainTokens },
+      tools: Object.fromEntries(
+        [...acc.sidechainTools].sort(([a], [b]) => a.localeCompare(b)),
+      ),
+      toolErrors: acc.sidechainToolErrors,
     },
     parseErrors: acc.parseErrors,
   };

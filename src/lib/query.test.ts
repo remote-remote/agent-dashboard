@@ -12,7 +12,7 @@ function rollup(over: Partial<SessionRollup> = {}): SessionRollup {
     cost: {}, tools: {}, toolErrors: 0, linesAdded: 0, linesRemoved: 0,
     filesTouched: [], turnCount: 1, userPromptCount: 1, interruptions: 0,
     status: "done", statusSource: "registry",
-    sidechain: { turnCount: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, thinking: 0 } },
+    sidechain: { turnCount: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, thinking: 0 }, tools: {}, toolErrors: 0 },
     parseErrors: 0,
     ...over,
   };
