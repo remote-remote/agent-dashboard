@@ -29,9 +29,25 @@ function CostCell({ cost }: { cost: SessionRollup["cost"] }) {
     return <span className="cost measured mono" title="Measured by the harness">{formatCost(cost.measured)}</span>;
   }
   if (cost.imputed !== undefined) {
+    const partial = cost.unpricedModels && cost.unpricedModels.length > 0;
     return (
-      <span className="cost imputed mono" title="Imputed from token counts at API rates">
+      <span
+        className="cost imputed mono"
+        title={
+          partial
+            ? `Imputed at API rates, but no price for: ${cost.unpricedModels!.join(", ")}`
+            : "Imputed from token counts at API rates"
+        }
+      >
         ~{formatCost(cost.imputed)}
+        {partial && <span className="sub">*</span>}
+      </span>
+    );
+  }
+  if (cost.unpricedModels && cost.unpricedModels.length > 0) {
+    return (
+      <span className="cost none mono" title={`No price for: ${cost.unpricedModels.join(", ")}`}>
+        n/p
       </span>
     );
   }

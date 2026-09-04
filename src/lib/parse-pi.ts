@@ -97,7 +97,15 @@ function foldPiMessage(acc: Accumulator, message: Record<string, unknown>): void
         typeof message.responseId === "string" && message.responseId !== ""
           ? message.responseId
           : undefined;
-      chargeUsage(acc, usageKey, readUsage(usage), "main");
+      chargeUsage(
+        acc,
+        usageKey,
+        readUsage(usage),
+        "main",
+        typeof message.model === "string" && message.model !== ""
+          ? message.model
+          : undefined,
+      );
 
       const cost = asRecord(usage?.cost);
       if (cost && typeof cost.total === "number" && Number.isFinite(cost.total)) {

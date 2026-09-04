@@ -134,6 +134,8 @@ export interface Totals {
   /** Token counts priced at API rates. Never added to measuredCost. */
   imputedCost: number;
   imputedSessions: number;
+  /** Sessions whose imputed figure is missing at least one model's price. */
+  partiallyPriced: number;
   working: number;
   turnCount: number;
   toolErrors: number;
@@ -152,7 +154,7 @@ export function summarize(rollups: SessionRollup[]): Totals {
     sessions: rollups.length,
     tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, thinking: 0,
     measuredCost: 0, measuredSessions: 0,
-    imputedCost: 0, imputedSessions: 0,
+    imputedCost: 0, imputedSessions: 0, partiallyPriced: 0,
     working: 0, turnCount: 0, toolErrors: 0,
     linesAdded: 0, linesRemoved: 0, sidechainTokens: 0,
   };
@@ -177,6 +179,9 @@ export function summarize(rollups: SessionRollup[]): Totals {
     if (r.cost.imputed !== undefined) {
       totals.imputedCost += r.cost.imputed;
       totals.imputedSessions += 1;
+    }
+    if (r.cost.unpricedModels && r.cost.unpricedModels.length > 0) {
+      totals.partiallyPriced += 1;
     }
   }
 

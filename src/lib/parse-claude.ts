@@ -103,6 +103,7 @@ export function foldClaudeRecord(
         usageKey,
         readUsage(asRecord(message.usage)),
         sidechain ? "sidechain" : "main",
+        typeof model === "string" && model !== "" ? model : undefined,
       );
 
       if (Array.isArray(message.content)) {

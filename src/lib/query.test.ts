@@ -9,6 +9,7 @@ function rollup(over: Partial<SessionRollup> = {}): SessionRollup {
     endedAt: "2026-09-04T01:00:00.000Z", durationMs: 3_600_000,
     models: ["claude-opus-5"],
     tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, thinking: 1 },
+    tokensByModel: {},
     cost: {}, tools: {}, toolErrors: 0, linesAdded: 0, linesRemoved: 0,
     filesTouched: [], turnCount: 1, userPromptCount: 1, interruptions: 0,
     status: "done", statusSource: "registry",

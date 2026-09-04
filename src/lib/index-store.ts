@@ -3,6 +3,7 @@ import { createAccumulator, finalize, type Accumulator } from "./accumulator.ts"
 import { discoverAllSessions, type DiscoveredSession } from "./discover.ts";
 import { foldInto } from "./load.ts";
 import { resolveProject } from "./project.ts";
+import { imputeCost, loadPriceTable, type PriceTable } from "./prices.ts";
 import { createStatusResolver } from "./status.ts";
 import type { SessionRollup } from "./types.ts";
 
@@ -46,6 +47,12 @@ export class SessionIndex {
   private tracked = new Map<string, TrackedSession>();
   private rollups = new Map<string, SessionRollup>();
   private lastRefresh?: RefreshStats;
+  private priceTable: PriceTable = loadPriceTable();
+
+  /** Re-read on every refresh so editing the config shows up without a restart. */
+  getPriceTable(): PriceTable {
+    return this.priceTable;
+  }
 
   getAll(): SessionRollup[] {
     return [...this.rollups.values()];
@@ -62,6 +69,7 @@ export class SessionIndex {
   async refresh(): Promise<RefreshStats> {
     const started = Date.now();
     const stats = { sessions: 0, filesRead: 0, bytesRead: 0, reparsed: 0, durationMs: 0 };
+    this.priceTable = loadPriceTable();
 
     const discovered = await discoverAllSessions();
     const seen = new Set<string>();
@@ -162,8 +170,23 @@ export class SessionIndex {
     entry.mtimeMs = newestMtime;
 
     const rollup = finalize(entry.acc, resolveProject(entry.acc.cwd ?? ""));
+
+    // pi measures real dollars per message. Claude reports none, so its cost is
+    // imputed from token counts at API rates and kept in a separate field that
+    // is never summed with measured dollars.
+    const cost = { ...rollup.cost };
+    if (cost.measured === undefined) {
+      const { cost: imputed, unpriced } = imputeCost(
+        rollup.tokensByModel,
+        this.priceTable.prices,
+      );
+      if (imputed > 0) cost.imputed = imputed;
+      if (unpriced.length > 0) cost.unpricedModels = unpriced;
+    }
+
     this.rollups.set(key, {
       ...rollup,
+      cost,
       status: "unknown",
       statusSource: "none",
     });

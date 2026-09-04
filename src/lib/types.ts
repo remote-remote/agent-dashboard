@@ -16,6 +16,8 @@ export interface CostBreakdown {
   measured?: number;
   /** Token counts priced against the user's config table. Claude only. */
   imputed?: number;
+  /** Models with no price, so an imputed figure can be flagged as partial. */
+  unpricedModels?: string[];
 }
 
 export interface SidechainTotals {
@@ -47,6 +49,8 @@ export interface SessionRollup {
   effort?: string;
 
   tokens: TokenCounts;
+  /** Per-model split, used to price a session that mixed models. */
+  tokensByModel: Record<string, TokenCounts>;
   cost: CostBreakdown;
 
   tools: Record<string, number>;

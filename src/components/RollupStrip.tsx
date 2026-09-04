@@ -53,8 +53,9 @@ export function RollupStrip({ totals }: { totals: Totals }) {
         value={totals.imputedSessions > 0 ? `~${formatCost(totals.imputedCost)}` : "-"}
         note={
           totals.imputedSessions > 0
-            ? `${totals.imputedSessions} session${totals.imputedSessions === 1 ? "" : "s"} at API rates`
-            : "no price table"
+            ? `${totals.imputedSessions} session${totals.imputedSessions === 1 ? "" : "s"} at API rates` +
+              (totals.partiallyPriced > 0 ? ` · ${totals.partiallyPriced} partial` : "")
+            : "nothing to impute"
         }
         tone="imputed"
       />

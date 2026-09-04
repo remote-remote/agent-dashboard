@@ -30,6 +30,7 @@ export default async function Page({
   const parseErrors = all.reduce((sum, r) => sum + r.parseErrors, 0);
 
   const range = Array.isArray(params.range) ? params.range[0] : params.range;
+  const priceTable = index.getPriceTable();
 
   return (
     <main className="shell">
@@ -48,6 +49,13 @@ export default async function Page({
         </div>
       )}
 
+      {priceTable.configError && (
+        <div className="warn">
+          Price config at {priceTable.configPath} could not be read
+          ({priceTable.configError}). Using built-in rates.
+        </div>
+      )}
+
       <FilterBar filters={filters} facets={facets(all)} range={range} />
       <RollupStrip totals={totals} />
       <SessionTable rows={rows} />
@@ -56,6 +64,11 @@ export default async function Page({
         <span><span className="measured-key">green</span> measured dollars, reported by the harness</span>
         <span><span className="imputed-key">purple ~</span> imputed from tokens at API rates, never summed with measured</span>
         <span>~ after a status means it was inferred from file mtime</span>
+        <span>
+          {priceTable.configPath && !priceTable.configError
+            ? `rates from ${priceTable.configPath}`
+            : "rates are built-in defaults, override them in ~/.config/agent-dashboard/prices.json"}
+        </span>
       </div>
     </main>
   );

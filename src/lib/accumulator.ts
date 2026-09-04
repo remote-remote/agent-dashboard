@@ -27,6 +27,8 @@ export interface Accumulator {
 
   models: Set<string>;
   tokens: TokenCounts;
+  /** Per-model split, so a session that mixed models can be priced correctly. */
+  tokensByModel: Map<string, TokenCounts>;
   measuredCost: number;
   hasMeasuredCost: boolean;
 
@@ -66,6 +68,7 @@ export interface Accumulator {
   lastUsageKey?: string;
   lastUsageCharged?: TokenCounts;
   lastUsageTarget?: "main" | "sidechain";
+  lastUsageModel?: string;
 }
 
 export function createAccumulator(
@@ -79,6 +82,7 @@ export function createAccumulator(
     transcriptPath,
     models: new Set(),
     tokens: emptyTokens(),
+    tokensByModel: new Map(),
     measuredCost: 0,
     hasMeasuredCost: false,
     tools: new Map(),
@@ -109,20 +113,25 @@ export function chargeUsage(
   key: string | undefined,
   usage: TokenCounts,
   target: "main" | "sidechain",
+  model?: string,
 ): void {
   const bucket = target === "sidechain" ? acc.sidechainTokens : acc.tokens;
 
   if (key !== undefined && key === acc.lastUsageKey && acc.lastUsageCharged) {
     const prev = acc.lastUsageCharged;
-    const prevBucket =
-      acc.lastUsageTarget === "sidechain" ? acc.sidechainTokens : acc.tokens;
-    addTokens(prevBucket, {
+    const negated: TokenCounts = {
       input: -prev.input,
       output: -prev.output,
       cacheRead: -prev.cacheRead,
       cacheWrite: -prev.cacheWrite,
       thinking: -prev.thinking,
-    });
+    };
+    const prevBucket =
+      acc.lastUsageTarget === "sidechain" ? acc.sidechainTokens : acc.tokens;
+    addTokens(prevBucket, negated);
+    if (acc.lastUsageModel !== undefined) {
+      addTokens(modelBucket(acc, acc.lastUsageModel), negated);
+    }
   } else {
     // A new response, not another block of the one we just counted.
     if (target === "sidechain") acc.sidechainTurnCount += 1;
@@ -130,16 +139,28 @@ export function chargeUsage(
   }
 
   addTokens(bucket, usage);
+  if (model !== undefined) addTokens(modelBucket(acc, model), usage);
 
   if (key !== undefined) {
     acc.lastUsageKey = key;
     acc.lastUsageCharged = { ...usage };
     acc.lastUsageTarget = target;
+    acc.lastUsageModel = model;
   } else {
     acc.lastUsageKey = undefined;
     acc.lastUsageCharged = undefined;
     acc.lastUsageTarget = undefined;
+    acc.lastUsageModel = undefined;
   }
+}
+
+function modelBucket(acc: Accumulator, model: string): TokenCounts {
+  let bucket = acc.tokensByModel.get(model);
+  if (!bucket) {
+    bucket = emptyTokens();
+    acc.tokensByModel.set(model, bucket);
+  }
+  return bucket;
 }
 
 export function noteTimestamp(acc: Accumulator, ts: unknown): void {
@@ -188,6 +209,9 @@ export function finalize(
     provider: acc.provider,
     effort: acc.effort,
     tokens: { ...acc.tokens },
+    tokensByModel: Object.fromEntries(
+      [...acc.tokensByModel].map(([model, t]) => [model, { ...t }]),
+    ),
     cost: acc.hasMeasuredCost ? { measured: acc.measuredCost } : {},
     tools: Object.fromEntries([...acc.tools].sort(([a], [b]) => a.localeCompare(b))),
     toolErrors: acc.toolErrors,
