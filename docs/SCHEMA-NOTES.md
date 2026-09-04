@@ -83,3 +83,19 @@ Cleaner: one record per assistant response, no duplication (no repeated
 - Session id is the uuid half of `<ISO>_<uuidv7>.jsonl`.
 - A transcript under `/private/var/folders/.../tmp.XXXX` is just a session run
   in a `mktemp -d`. Real session, real tokens.
+
+## Claude registry: `procStart` is UTC, `ps` is local
+
+`~/.claude/sessions/<pid>.json` writes `procStart` in `ps lstart` format
+("Fri Sep  4 14:06:47 2026") but in **UTC**, while `ps -o lstart=` prints the
+same instant in local time. On a UTC-5 machine the two strings are five hours
+apart, so comparing them directly never matches and every live session resolves
+to `done`.
+
+Parsing the registry string as UTC reproduces the epoch `startedAt` written
+alongside it exactly (`Fri Sep  4 14:06:47 2026` -> 1788530807000, and
+`startedAt` is 1788530807831). The `ps` value is parsed as UTC and shifted by
+the local offset before comparison, with a 2s tolerance.
+
+The comparison only guards against a recycled pid; `process.kill(pid, 0)`
+already covers the ordinary crashed-session case.

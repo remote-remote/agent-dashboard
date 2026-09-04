@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { createAccumulator, finalize, type Accumulator } from "./accumulator";
-import type { DiscoveredSession } from "./discover";
-import { foldJsonl } from "./jsonl";
-import { foldClaudeRecord } from "./parse-claude";
-import { foldPiRecord } from "./parse-pi";
-import { resolveProject } from "./project";
-import type { SessionRollup } from "./types";
+import { createAccumulator, finalize, type Accumulator } from "./accumulator.ts";
+import type { DiscoveredSession } from "./discover.ts";
+import { foldJsonl } from "./jsonl.ts";
+import { foldClaudeRecord } from "./parse-claude.ts";
+import { foldPiRecord } from "./parse-pi.ts";
+import { resolveProject } from "./project.ts";
+import type { SessionRollup } from "./types.ts";
 
 export function foldInto(
   acc: Accumulator,

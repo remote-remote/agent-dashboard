@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { CLAUDE_PROJECTS, PI_SESSIONS } from "./paths";
-import type { Harness } from "./types";
+import { CLAUDE_PROJECTS, PI_SESSIONS } from "./paths.ts";
+import type { Harness } from "./types.ts";
 
 export interface DiscoveredSession {
   harness: Harness;

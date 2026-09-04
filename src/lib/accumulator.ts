@@ -4,7 +4,7 @@ import {
   type Harness,
   type SessionRollup,
   type TokenCounts,
-} from "./types";
+} from "./types.ts";
 
 /**
  * Mutable fold target for one session. Folding is incremental: the index reads

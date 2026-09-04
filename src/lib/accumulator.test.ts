@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { chargeUsage, createAccumulator, finalize } from "./accumulator";
-import { foldClaudeRecord } from "./parse-claude";
-import { foldPiRecord } from "./parse-pi";
+import { chargeUsage, createAccumulator, finalize } from "./accumulator.ts";
+import { foldClaudeRecord } from "./parse-claude.ts";
+import { foldPiRecord } from "./parse-pi.ts";
 
 const usage = (o: number, cr = 0) => ({
   input: 1,

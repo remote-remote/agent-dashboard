@@ -3,8 +3,8 @@ import {
   countTool,
   noteTimestamp,
   type Accumulator,
-} from "./accumulator";
-import type { TokenCounts } from "./types";
+} from "./accumulator.ts";
+import type { TokenCounts } from "./types.ts";
 
 const INTERRUPT_MARKERS = [
   "[Request interrupted by user",

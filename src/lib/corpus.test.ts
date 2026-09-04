@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { discoverAllSessions, discoverClaudeSessions, discoverPiSessions, piSessionId } from "./discover";
-import { loadSession } from "./load";
-import { CLAUDE_USAGE_DATA } from "./paths";
-import { totalTokens } from "./types";
+import { discoverAllSessions, discoverClaudeSessions, discoverPiSessions, piSessionId } from "./discover.ts";
+import { loadSession } from "./load.ts";
+import { CLAUDE_USAGE_DATA } from "./paths.ts";
+import { totalTokens } from "./types.ts";
 
 /**
  * These run against whatever transcripts exist on this machine. The schemas are
