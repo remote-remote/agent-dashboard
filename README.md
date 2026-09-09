@@ -1,7 +1,6 @@
 # Agent Dashboard
 
-A local-only web app that reads Claude Code and pi session transcripts off this
-machine and shows session statistics, live-updating as sessions work.
+A local-only web app that reads Claude Code and pi session transcripts off this machine and shows session statistics, live-updating as sessions work.
 
 Everything is read-only. Nothing outside this directory is ever written.
 
@@ -24,22 +23,15 @@ pnpm test
 | Claude Code | `~/.claude/usage-data/facets/*.json` | no, garnish |
 | pi | `~/.pi/agent/sessions/--<mangled-cwd>--/<ISO>_<uuid>.jsonl` | yes |
 
-The app is fully functional with the entire `usage-data` directory missing, and
-with either harness absent.
+The app is fully functional with the entire `usage-data` directory missing, and with either harness absent.
 
-Override the roots with `AGENT_DASHBOARD_CLAUDE_ROOT` and
-`AGENT_DASHBOARD_PI_ROOT` (used by the tests).
+Override the roots with `AGENT_DASHBOARD_CLAUDE_ROOT` and `AGENT_DASHBOARD_PI_ROOT` (used by the tests).
 
 ## Cost
 
-pi measures real dollars per message; those are used verbatim and shown in
-green. Claude reports none - `totalCostUSD` is always `0` on a subscription - so
-its cost is **imputed**: token counts priced at API rates, shown in purple with
-a `~`. The two are never added into one number.
+pi measures real dollars per message; those are used verbatim and shown in green. Claude reports none - `totalCostUSD` is always `0` on a subscription - so its cost is **imputed**: token counts priced at API rates, shown in purple with a `~`. The two are never added into one number.
 
-Rates live in `~/.config/agent-dashboard/prices.json` (override with
-`AGENT_DASHBOARD_PRICES`). Anything there overrides the built-in defaults per
-model; unlisted models keep the defaults.
+Rates live in `~/.config/agent-dashboard/prices.json` (override with `AGENT_DASHBOARD_PRICES`). Anything there overrides the built-in defaults per model; unlisted models keep the defaults.
 
 ```json
 {
@@ -49,8 +41,7 @@ model; unlisted models keep the defaults.
 }
 ```
 
-All four rates are dollars per million tokens. A model with no price is never
-guessed at - the session is marked partially priced and names the model.
+All four rates are dollars per million tokens. A model with no price is never guessed at - the session is marked partially priced and names the model.
 
 ## Status
 
@@ -59,9 +50,7 @@ guessed at - the session is marked partially priced and names the model.
 - **Claude** uses the session registry: an entry exists, `kill(pid, 0)`
   succeeds, and the process start time matches. Otherwise `done`.
 - **pi** has no registry, so it falls back to transcript mtime under 60s.
-  **pi can never report `idle`** - a session waiting on input writes nothing, so
-  it is indistinguishable from one that exited. The error direction is safe:
-  mtime under-reports `working` rather than claiming work that is not happening.
+  **pi can never report `idle`** - a session waiting on input writes nothing, so it is indistinguishable from one that exited. The error direction is safe: mtime under-reports `working` rather than claiming work that is not happening.
 
 If the registry disappears, Claude degrades to the same mtime heuristic.
 
@@ -87,7 +76,4 @@ src/app/
   api/events/route.ts            the only route handler: SSE ping
 ```
 
-Notes on the two undocumented transcript schemas, including the several places
-where reading them naively gives wrong numbers, are in
-[docs/SCHEMA-NOTES.md](docs/SCHEMA-NOTES.md). The design is in
-[docs/DESIGN.md](docs/DESIGN.md).
+Notes on the two undocumented transcript schemas, including the several places where reading them naively gives wrong numbers, are in [docs/SCHEMA-NOTES.md](docs/SCHEMA-NOTES.md). The design is in [docs/DESIGN.md](docs/DESIGN.md).
