@@ -24,9 +24,41 @@ export interface Prompt {
   text: string;
 }
 
+export type EventKind =
+  | "user"
+  | "reasoning"
+  | "assistant"
+  | "tool_call"
+  | "tool_result";
+
+/**
+ * One entry in the chronological transcript, flattened from the per-record,
+ * per-content-block shape both harnesses use. Records arrive in order on disk,
+ * so events are pushed as encountered and never re-sorted.
+ */
+export interface TranscriptEvent {
+  index: number;
+  /**
+   * The turn this event belongs to. Assistant output uses its own turn; a tool
+   * result uses the turn that called it; a user prompt uses the turn it
+   * triggered, so a turn reads as prompt -> reasoning -> calls -> results.
+   */
+  turnIndex: number;
+  kind: EventKind;
+  timestamp?: string;
+  model?: string;
+  /** user prompt, model reasoning, or assistant prose. */
+  text?: string;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  toolUseId?: string;
+  isError?: boolean;
+}
+
 export interface Sidechain {
   agentId: string;
   turns: Turn[];
+  events: TranscriptEvent[];
   tokens: TokenCounts;
 }
 
@@ -60,9 +92,71 @@ export interface SessionDetail {
   version?: string;
   turns: Turn[];
   prompts: Prompt[];
+  events: TranscriptEvent[];
   sidechains: Sidechain[];
   retro: Retrospective;
   parseErrors: number;
+}
+
+/** Accumulates the ordered event stream and resolves tool calls by id. */
+class EventLog {
+  events: TranscriptEvent[] = [];
+  private calls = new Map<string, { name: string; turnIndex: number }>();
+
+  private push(e: Omit<TranscriptEvent, "index">): void {
+    this.events.push({ index: this.events.length, ...e });
+  }
+
+  user(turnIndex: number, timestamp: string | undefined, text: string): void {
+    this.push({ turnIndex, kind: "user", timestamp, text });
+  }
+
+  reasoning(turnIndex: number, timestamp: string | undefined, model: string | undefined, text: string): void {
+    if (!text) return;
+    this.push({ turnIndex, kind: "reasoning", timestamp, model, text });
+  }
+
+  assistant(turnIndex: number, timestamp: string | undefined, model: string | undefined, text: string): void {
+    if (!text) return;
+    this.push({ turnIndex, kind: "assistant", timestamp, model, text });
+  }
+
+  toolCall(
+    turnIndex: number,
+    timestamp: string | undefined,
+    model: string | undefined,
+    id: string | undefined,
+    name: string,
+    input: Record<string, unknown> | undefined,
+  ): void {
+    if (id) this.calls.set(id, { name, turnIndex });
+    this.push({ turnIndex, kind: "tool_call", timestamp, model, toolUseId: id, toolName: name, toolInput: input });
+  }
+
+  toolResult(
+    fallbackTurnIndex: number,
+    timestamp: string | undefined,
+    id: string | undefined,
+    name: string | undefined,
+    text: string,
+    isError: boolean,
+  ): void {
+    const call = id ? this.calls.get(id) : undefined;
+    this.push({
+      turnIndex: call?.turnIndex ?? fallbackTurnIndex,
+      kind: "tool_result",
+      timestamp,
+      toolUseId: id,
+      toolName: name ?? call?.name,
+      text,
+      isError,
+    });
+  }
+}
+
+/** Events for one turn, in transcript order. */
+export function eventsForTurn(events: TranscriptEvent[], turnIndex: number): TranscriptEvent[] {
+  return events.filter((e) => e.turnIndex === turnIndex);
 }
 
 function num(v: unknown): number {
@@ -154,8 +248,24 @@ function textOf(content: unknown): string {
     .join("\n");
 }
 
+/** tool_result content is a bare string or an array of text blocks. */
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => {
+        const b = asRecord(block);
+        return b?.type === "text" && typeof b.text === "string" ? b.text : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
 function parseClaude(buffer: Buffer, isSidechain: boolean) {
   const builder = new TurnBuilder();
+  const log = new EventLog();
   const prompts: Prompt[] = [];
   const toolsByName: Record<string, number> = {};
   const filesTouched = new Set<string>();
@@ -182,6 +292,9 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
         const message = asRecord(rec.message);
         if (!message) return;
 
+        const model0 = str(message.model);
+        const displayModel = model0 === "<synthetic>" ? undefined : model0;
+        const ts = str(rec.timestamp);
         const tools: string[] = [];
         let hasThinking = false;
         if (Array.isArray(message.content)) {
@@ -201,10 +314,11 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
           }
         }
 
-        const model = str(message.model);
-        builder.add(str(message.id), {
+        // The turn is created first so its index can tag the events below; a
+        // response split across records merges back onto the same turn.
+        const turn = builder.add(str(message.id), {
           timestamp: str(rec.timestamp),
-          model: model === "<synthetic>" ? undefined : model,
+          model: displayModel,
           effort: str(rec.effort),
           tokens: claudeUsage(asRecord(message.usage)),
           stopReason: str(message.stop_reason),
@@ -212,6 +326,20 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
           text: textOf(message.content),
           thinking: hasThinking,
         });
+
+        if (Array.isArray(message.content)) {
+          for (const block of message.content) {
+            const b = asRecord(block);
+            if (b?.type === "thinking") {
+              log.reasoning(turn.index, ts, displayModel, typeof b.thinking === "string" ? b.thinking : "");
+            } else if (b?.type === "text" && typeof b.text === "string") {
+              log.assistant(turn.index, ts, displayModel, b.text);
+            } else if (b?.type === "tool_use") {
+              const name = str(b.name);
+              if (name) log.toolCall(turn.index, ts, displayModel, str(b.id), name, asRecord(b.input));
+            }
+          }
+        }
         return;
       }
 
@@ -225,7 +353,16 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
             const b = asRecord(block);
             if (b?.type !== "tool_result") continue;
             sawToolResult = true;
-            if (b.is_error === true) toolErrors += 1;
+            const isErr = b.is_error === true;
+            if (isErr) toolErrors += 1;
+            log.toolResult(
+              Math.max(0, builder.turns.length - 1),
+              str(rec.timestamp),
+              str(b.tool_use_id),
+              undefined,
+              resultText(b.content),
+              isErr,
+            );
           }
         }
 
@@ -234,6 +371,8 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
 
         if (!sawToolResult && rec.isMeta !== true && !isSidechain) {
           prompts.push({ timestamp: str(rec.timestamp), text });
+          // Belongs to the turn it is about to trigger, not the one before it.
+          log.user(builder.turns.length, str(rec.timestamp), text);
         }
         return;
       }
@@ -260,13 +399,14 @@ function parseClaude(buffer: Buffer, isSidechain: boolean) {
   });
 
   return {
-    builder, prompts, toolsByName, toolCalls, toolErrors, interruptions,
+    builder, log, prompts, toolsByName, toolCalls, toolErrors, interruptions,
     filesTouched, linesAdded, linesRemoved, firstToolAt, meta, parseErrors,
   };
 }
 
 function parsePi(buffer: Buffer) {
   const builder = new TurnBuilder();
+  const log = new EventLog();
   const prompts: Prompt[] = [];
   const toolsByName: Record<string, number> = {};
   let toolErrors = 0;
@@ -283,6 +423,10 @@ function parsePi(buffer: Buffer) {
       meta.version = rec.version === undefined ? meta.version : String(rec.version);
       return;
     }
+    if (rec.type === "session_info") {
+      meta.title = str(rec.name) ?? meta.title;
+      return;
+    }
     if (rec.type === "model_change") {
       meta.provider = str(rec.provider) ?? meta.provider;
       return;
@@ -295,6 +439,8 @@ function parsePi(buffer: Buffer) {
     if (message.role === "assistant") {
       meta.provider = str(message.provider) ?? meta.provider;
 
+      const model = str(message.model);
+      const ts = str(rec.timestamp);
       const tools: string[] = [];
       let hasThinking = false;
       if (Array.isArray(message.content)) {
@@ -316,9 +462,9 @@ function parsePi(buffer: Buffer) {
 
       const usage = asRecord(message.usage);
       const cost = asRecord(usage?.cost);
-      builder.add(str(message.responseId), {
+      const turn = builder.add(str(message.responseId), {
         timestamp: str(rec.timestamp),
-        model: str(message.model),
+        model,
         tokens: {
           input: num(usage?.input),
           output: num(usage?.output),
@@ -332,21 +478,46 @@ function parsePi(buffer: Buffer) {
         text: textOf(message.content),
         thinking: hasThinking,
       });
+
+      if (Array.isArray(message.content)) {
+        for (const block of message.content) {
+          const b = asRecord(block);
+          if (b?.type === "thinking") {
+            log.reasoning(turn.index, ts, model, typeof b.thinking === "string" ? b.thinking : "");
+          } else if (b?.type === "text" && typeof b.text === "string") {
+            log.assistant(turn.index, ts, model, b.text);
+          } else if (b?.type === "toolCall") {
+            const name = str(b.name);
+            if (name) log.toolCall(turn.index, ts, model, str(b.id), name, asRecord(b.arguments));
+          }
+        }
+      }
       return;
     }
 
     if (message.role === "user") {
-      prompts.push({ timestamp: str(rec.timestamp), text: textOf(message.content) });
+      const text = textOf(message.content);
+      prompts.push({ timestamp: str(rec.timestamp), text });
+      log.user(builder.turns.length, str(rec.timestamp), text);
       return;
     }
 
-    if (message.role === "toolResult" && message.isError === true) {
-      toolErrors += 1;
+    if (message.role === "toolResult") {
+      const isErr = message.isError === true;
+      if (isErr) toolErrors += 1;
+      log.toolResult(
+        Math.max(0, builder.turns.length - 1),
+        str(rec.timestamp),
+        str(message.toolCallId),
+        str(message.toolName),
+        resultText(message.content),
+        isErr,
+      );
     }
   });
 
   return {
-    builder, prompts, toolsByName, toolCalls, toolErrors, interruptions: 0,
+    builder, log, prompts, toolsByName, toolCalls, toolErrors, interruptions: 0,
     filesTouched: new Set<string>(), linesAdded: 0, linesRemoved: 0,
     firstToolAt, meta, parseErrors,
   };
@@ -386,6 +557,7 @@ async function buildDetail(session: DiscoveredSession): Promise<SessionDetail> {
     sidechains.push({
       agentId,
       turns: sub.builder.turns,
+      events: sub.log.events,
       tokens: sumTokens(sub.builder.turns),
     });
   }
@@ -416,6 +588,7 @@ async function buildDetail(session: DiscoveredSession): Promise<SessionDetail> {
     version: parsed.meta.version,
     turns,
     prompts: parsed.prompts,
+    events: parsed.log.events,
     sidechains,
     parseErrors: parsed.parseErrors + sidechainErrors,
     retro: {
@@ -447,15 +620,8 @@ async function buildDetail(session: DiscoveredSession): Promise<SessionDetail> {
 const CACHE_LIMIT = 8;
 const cache = new Map<string, { mtimeMs: number; size: number; detail: SessionDetail }>();
 
-export async function getSessionDetail(
-  harness: Harness,
-  sessionId: string,
-): Promise<SessionDetail | undefined> {
-  const session = (await discoverAllSessions()).find(
-    (s) => s.harness === harness && s.sessionId === sessionId,
-  );
-  if (!session) return undefined;
-
+/** Cached build for one discovered session, invalidated on mtime or size change. */
+async function detailFor(session: DiscoveredSession): Promise<SessionDetail | undefined> {
   let mtimeMs = 0;
   let size = 0;
   try {
@@ -466,7 +632,7 @@ export async function getSessionDetail(
     return undefined;
   }
 
-  const key = `${harness}:${sessionId}`;
+  const key = `${session.harness}:${session.sessionId}`;
   const hit = cache.get(key);
   if (hit && hit.mtimeMs === mtimeMs && hit.size === size) {
     cache.delete(key);
@@ -481,6 +647,17 @@ export async function getSessionDetail(
     if (oldest !== undefined) cache.delete(oldest);
   }
   return detail;
+}
+
+export async function getSessionDetail(
+  harness: Harness,
+  sessionId: string,
+): Promise<SessionDetail | undefined> {
+  const session = (await discoverAllSessions()).find(
+    (s) => s.harness === harness && s.sessionId === sessionId,
+  );
+  if (!session) return undefined;
+  return detailFor(session);
 }
 
 export function clearDetailCache(): void {

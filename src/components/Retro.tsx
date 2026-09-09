@@ -1,5 +1,5 @@
 import { formatDuration } from "@/lib/format";
-import { shortenPath } from "@/lib/format";
+import { shortenPath } from "@/lib/paths";
 import type { Retrospective } from "@/lib/detail";
 
 /**

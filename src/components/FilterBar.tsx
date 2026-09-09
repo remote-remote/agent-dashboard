@@ -1,9 +1,17 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+
 import type { FacetCounts, Filters } from "@/lib/query";
 import { projectName } from "@/lib/format";
 
+const SEARCH_DEBOUNCE_MS = 250;
+
 /**
- * Filters are a plain GET form writing to search params, so every view is
- * bookmarkable and the server component is the only thing that reads them.
+ * Filters write to search params, so every view is still bookmarkable and the
+ * server component remains the only thing that reads them. Changes navigate on
+ * their own; `replace` keeps tweaking a filter out of the back stack.
  */
 export function FilterBar({
   filters, facets, range,
@@ -12,18 +20,62 @@ export function FilterBar({
   facets: FacetCounts;
   range?: string;
 }) {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const [search, setSearch] = useState(filters.search ?? "");
+  const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(debounce.current), []);
+
+  function apply(changes: Record<string, string>) {
+    const next = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const qs = next.toString();
+    startTransition(() => router.replace(qs ? `/?${qs}` : "/", { scroll: false }));
+  }
+
+  function onSearch(value: string) {
+    setSearch(value);
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => apply({ q: value }), SEARCH_DEBOUNCE_MS);
+  }
+
+  function reset() {
+    clearTimeout(debounce.current);
+    setSearch("");
+    startTransition(() => router.replace("/", { scroll: false }));
+  }
+
   return (
-    <div className="filters">
-      <form method="GET" action="/">
+    <div className="filters" data-pending={pending || undefined}>
+      <form
+        method="GET"
+        action="/"
+        onSubmit={(e) => {
+          e.preventDefault();
+          clearTimeout(debounce.current);
+          apply({ q: search });
+        }}
+      >
         <input
           className="control"
           type="search"
           name="q"
           placeholder="Search title, project, id"
-          defaultValue={filters.search ?? ""}
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
         />
 
-        <select className="control" name="harness" defaultValue={filters.harness ?? ""}>
+        <select
+          className="control"
+          name="harness"
+          value={filters.harness ?? ""}
+          onChange={(e) => apply({ harness: e.target.value })}
+        >
           <option value="">All harnesses</option>
           {facets.harnesses.map((h) => (
             <option key={h.value} value={h.value}>
@@ -32,7 +84,12 @@ export function FilterBar({
           ))}
         </select>
 
-        <select className="control" name="project" defaultValue={filters.project ?? ""}>
+        <select
+          className="control"
+          name="project"
+          value={filters.project ?? ""}
+          onChange={(e) => apply({ project: e.target.value })}
+        >
           <option value="">All projects</option>
           {facets.projects.map((p) => (
             <option key={p.value} value={p.value}>
@@ -41,7 +98,12 @@ export function FilterBar({
           ))}
         </select>
 
-        <select className="control" name="model" defaultValue={filters.model ?? ""}>
+        <select
+          className="control"
+          name="model"
+          value={filters.model ?? ""}
+          onChange={(e) => apply({ model: e.target.value })}
+        >
           <option value="">All models</option>
           {facets.models.map((m) => (
             <option key={m.value} value={m.value}>
@@ -50,7 +112,12 @@ export function FilterBar({
           ))}
         </select>
 
-        <select className="control" name="status" defaultValue={filters.status ?? ""}>
+        <select
+          className="control"
+          name="status"
+          value={filters.status ?? ""}
+          onChange={(e) => apply({ status: e.target.value })}
+        >
           <option value="">Any status</option>
           {facets.statuses.map((s) => (
             <option key={s.value} value={s.value}>
@@ -59,14 +126,24 @@ export function FilterBar({
           ))}
         </select>
 
-        <select className="control" name="range" defaultValue={range ?? ""}>
+        <select
+          className="control"
+          name="range"
+          value={range ?? ""}
+          onChange={(e) => apply({ range: e.target.value })}
+        >
           <option value="">All time</option>
           <option value="24h">Last 24h</option>
           <option value="7d">Last 7 days</option>
           <option value="30d">Last 30 days</option>
         </select>
 
-        <select className="control" name="sort" defaultValue={filters.sort}>
+        <select
+          className="control"
+          name="sort"
+          value={filters.sort}
+          onChange={(e) => apply({ sort: e.target.value })}
+        >
           <option value="recent">Most recent</option>
           <option value="tokens">Most tokens</option>
           <option value="cost">Most expensive</option>
@@ -74,8 +151,7 @@ export function FilterBar({
           <option value="turns">Most turns</option>
         </select>
 
-        <button className="control" type="submit">Apply</button>
-        <a className="control" href="/">Reset</a>
+        <button className="control" type="button" onClick={reset}>Reset</button>
       </form>
     </div>
   );

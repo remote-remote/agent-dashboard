@@ -75,6 +75,72 @@ describe.skipIf(sessions.length === 0)("session detail over the real corpus", ()
     expect(second).toBe(first);
   });
 
+  it("assigns every event to a real turn, or to the one still pending", async () => {
+    for (const session of sessions) {
+      const detail = await getSessionDetail(session.harness, session.sessionId);
+      for (const event of detail!.events) {
+        expect(event.turnIndex, session.transcriptPath).toBeGreaterThanOrEqual(0);
+        // turns.length is legal: a prompt with no response yet.
+        expect(event.turnIndex, session.transcriptPath).toBeLessThanOrEqual(detail!.turns.length);
+      }
+    }
+  });
+
+  it("only leaves user prompts awaiting a response", async () => {
+    for (const session of sessions) {
+      const detail = await getSessionDetail(session.harness, session.sessionId);
+      const pending = detail!.events.filter((e) => e.turnIndex >= detail!.turns.length);
+      for (const event of pending) {
+        expect(event.kind, session.transcriptPath).toBe("user");
+      }
+    }
+  });
+
+  it("files a tool result under the turn that called it", async () => {
+    let matched = 0;
+
+    for (const session of sessions) {
+      const detail = await getSessionDetail(session.harness, session.sessionId);
+      const callTurn = new Map<string, number>();
+      for (const event of detail!.events) {
+        if (event.kind === "tool_call" && event.toolUseId) {
+          callTurn.set(event.toolUseId, event.turnIndex);
+        }
+      }
+
+      for (const event of detail!.events) {
+        if (event.kind !== "tool_result" || !event.toolUseId) continue;
+        const expected = callTurn.get(event.toolUseId);
+        if (expected === undefined) continue;
+        matched += 1;
+        expect(event.turnIndex, `${session.sessionId} ${event.toolUseId}`).toBe(expected);
+      }
+    }
+
+    expect(matched).toBeGreaterThan(0);
+  });
+
+  it("emits one tool_call event per counted tool call", async () => {
+    for (const session of sessions) {
+      const detail = await getSessionDetail(session.harness, session.sessionId);
+      const calls = detail!.events.filter((e) => e.kind === "tool_call").length;
+      expect(calls, session.transcriptPath).toBe(detail!.retro.toolCalls);
+    }
+  });
+
+  it("groups a turn's tool_call events to match that turn's tools", async () => {
+    for (const session of sessions) {
+      const detail = await getSessionDetail(session.harness, session.sessionId);
+      for (const turn of detail!.turns) {
+        const names = detail!.events
+          .filter((e) => e.kind === "tool_call" && e.turnIndex === turn.index)
+          .map((e) => e.toolName);
+        expect(names.slice().sort(), `${session.sessionId} turn ${turn.index}`)
+          .toEqual(turn.tools.slice().sort());
+      }
+    }
+  });
+
   it("merges the blocks of one response into a single turn", async () => {
     const claude = sessions.filter((s) => s.harness === "claude");
     let checked = 0;

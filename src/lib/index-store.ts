@@ -5,7 +5,7 @@ import { foldInto } from "./load.ts";
 import { resolveProject } from "./project.ts";
 import { imputeCost, loadPriceTable, type PriceTable } from "./prices.ts";
 import { createStatusResolver } from "./status.ts";
-import type { SessionRollup } from "./types.ts";
+import type { SessionRollup, TokenCounts } from "./types.ts";
 
 interface TrackedFile {
   path: string;
@@ -176,12 +176,28 @@ export class SessionIndex {
     // is never summed with measured dollars.
     const cost = { ...rollup.cost };
     if (cost.measured === undefined) {
-      const { cost: imputed, unpriced } = imputeCost(
+      const { cost: imputed, byModel, unpriced } = imputeCost(
         rollup.tokensByModel,
         this.priceTable.prices,
       );
-      if (imputed > 0) cost.imputed = imputed;
+      if (imputed > 0) {
+        cost.imputed = imputed;
+        cost.byModel = byModel;
+      }
       if (unpriced.length > 0) cost.unpricedModels = unpriced;
+    } else {
+      // A measured session can still have models pi never priced. Fill only
+      // those gaps, and only in the per-model view: the session total stays
+      // purely measured so the two kinds of dollars are never summed.
+      const gaps: Record<string, TokenCounts> = {};
+      for (const [model, tokens] of Object.entries(rollup.tokensByModel)) {
+        if (cost.byModel?.[model] === undefined) gaps[model] = tokens;
+      }
+      if (Object.keys(gaps).length > 0) {
+        const { byModel, unpriced } = imputeCost(gaps, this.priceTable.prices);
+        cost.byModel = { ...cost.byModel, ...byModel };
+        if (unpriced.length > 0) cost.unpricedModels = unpriced;
+      }
     }
 
     this.rollups.set(key, {

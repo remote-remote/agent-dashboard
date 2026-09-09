@@ -18,6 +18,17 @@ export interface CostBreakdown {
   imputed?: number;
   /** Models with no price, so an imputed figure can be flagged as partial. */
   unpricedModels?: string[];
+  /**
+   * Per-model dollars. A measured session can still hold an imputed entry:
+   * pi only attaches a cost to some records, so a model that ran but was never
+   * charged is priced from its tokens and flagged, rather than shown as zero.
+   */
+  byModel?: Record<string, ModelCost>;
+}
+
+export interface ModelCost {
+  dollars: number;
+  imputed: boolean;
 }
 
 export interface SidechainTotals {

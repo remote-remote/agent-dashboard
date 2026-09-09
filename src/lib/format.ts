@@ -1,5 +1,3 @@
-import { homedir } from "node:os";
-
 export function formatTokens(value: number): string {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -7,10 +5,33 @@ export function formatTokens(value: number): string {
   return String(value);
 }
 
+/**
+ * Rough token count for a span of text. Neither harness records per-block
+ * usage, so a pill for a tool result or a prompt can only ever approximate;
+ * anything derived from this must be marked as an estimate in the UI.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 export function formatCost(value: number): string {
   if (value === 0) return "$0";
   if (value < 0.01) return `$${value.toFixed(4)}`;
   return `$${value.toFixed(2)}`;
+}
+
+/** Claude is "CC" so the column stays as narrow as pi's. */
+export function harnessLabel(harness: string): string {
+  return harness === "claude" ? "CC" : harness;
+}
+
+/**
+ * Model ids carry a release date suffix that is noise in a list, and pi
+ * qualifies them with a provider. Neither changes which model it is.
+ */
+export function shortModel(model: string): string {
+  const tail = model.slice(model.lastIndexOf("/") + 1);
+  return tail.replace(/-\d{8}$/, "");
 }
 
 export function formatDuration(ms: number): string {
@@ -38,15 +59,11 @@ export function formatRelative(iso: string | undefined, now = Date.now()): strin
   return new Date(then).toISOString().slice(0, 10);
 }
 
-const HOME = homedir();
-
-/** Project paths are long and share a prefix; the tail is the useful part. */
-export function shortenPath(path: string): string {
-  return path.startsWith(HOME) ? `~${path.slice(HOME.length)}` : path;
-}
-
+/**
+ * Stays free of `$HOME` so it can render on both sides of the client boundary;
+ * `shortenPath` in `paths.ts` is the server-only counterpart.
+ */
 export function projectName(path: string): string {
-  const short = shortenPath(path);
-  const parts = short.split("/").filter(Boolean);
-  return parts.length === 0 ? short : parts[parts.length - 1]!;
+  const parts = path.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? path;
 }

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import {
-  formatCost, formatDuration, formatRelative, formatTokens, projectName,
+  formatCost, formatDuration, formatRelative, formatTokens, harnessLabel,
+  projectName, shortModel,
 } from "@/lib/format";
-import { modelFamilies } from "@/lib/query";
 import { totalTokens, type SessionRollup } from "@/lib/types";
 
 function StatusCell({ rollup }: { rollup: SessionRollup }) {
@@ -54,6 +54,40 @@ function CostCell({ cost }: { cost: SessionRollup["cost"] }) {
   return <span className="cost none mono">-</span>;
 }
 
+function ModelCell({ rollup }: { rollup: SessionRollup }) {
+  if (rollup.models.length === 0) return <span className="sub">-</span>;
+
+  const byModel = rollup.cost.byModel ?? {};
+  const unpriced = new Set(rollup.cost.unpricedModels ?? []);
+
+  return (
+    <ul className="model-list">
+      {rollup.models.map((model) => {
+        const cost = byModel[model];
+        return (
+          <li key={model}>
+            <span className="sub" title={model}>{shortModel(model)}</span>
+            {cost !== undefined ? (
+              <span
+                className={`cost mono ${cost.imputed ? "imputed" : "measured"}`}
+                title={
+                  cost.imputed
+                    ? "Imputed from token counts at API rates"
+                    : "Measured by the harness"
+                }
+              >
+                {cost.imputed ? "~" : ""}{formatCost(cost.dollars)}
+              </span>
+            ) : (
+              <span className="cost none mono">{unpriced.has(model) ? "n/p" : "-"}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function SessionTable({ rows }: { rows: SessionRollup[] }) {
   if (rows.length === 0) {
     return (
@@ -67,10 +101,14 @@ export function SessionTable({ rows }: { rows: SessionRollup[] }) {
         <thead>
           <tr>
             <th>Status</th>
+            <th>Harness</th>
             <th>Session</th>
             <th>Project</th>
             <th>Model</th>
             <th className="num">Tokens</th>
+            <th className="num">In</th>
+            <th className="num">Out</th>
+            <th className="num">Cached</th>
             <th className="num">Cost</th>
             <th className="num">Turns</th>
             <th className="num">Duration</th>
@@ -82,19 +120,19 @@ export function SessionTable({ rows }: { rows: SessionRollup[] }) {
           {rows.map((r) => (
             <tr key={r.key}>
               <td><StatusCell rollup={r} /></td>
+              <td className={`harness-cell ${r.harness}`}>{harnessLabel(r.harness)}</td>
               <td className="title-cell">
                 <Link href={`/session/${r.harness}/${r.sessionId}`}>
-                  <span className={`badge ${r.harness}`}>{r.harness}</span>{" "}
                   {r.title ?? <span className="none">untitled</span>}
                 </Link>
               </td>
-              <td>
-                {projectName(r.project)}
+              <td className="project-cell">
+                <span>{projectName(r.project)}</span>
                 {r.gitBranch && r.gitBranch !== "HEAD" && (
-                  <span className="sub"> · {r.gitBranch}</span>
+                  <span className="sub">{r.gitBranch}</span>
                 )}
               </td>
-              <td className="sub">{modelFamilies(r).join(", ") || "-"}</td>
+              <td><ModelCell rollup={r} /></td>
               <td className="num mono">
                 {formatTokens(totalTokens(r.tokens))}
                 {r.sidechain.turnCount > 0 && (
@@ -102,6 +140,11 @@ export function SessionTable({ rows }: { rows: SessionRollup[] }) {
                     {" "}+{formatTokens(totalTokens(r.sidechain.tokens))}
                   </span>
                 )}
+              </td>
+              <td className="num mono">{formatTokens(r.tokens.input)}</td>
+              <td className="num mono">{formatTokens(r.tokens.output)}</td>
+              <td className="num mono" title={`${r.tokens.cacheWrite} written`}>
+                {formatTokens(r.tokens.cacheRead)}
               </td>
               <td className="num"><CostCell cost={r.cost} /></td>
               <td className="num mono">

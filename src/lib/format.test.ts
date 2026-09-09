@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCost, formatDuration, formatRelative, formatTokens, projectName } from "./format";
+import { estimateTokens, formatCost, formatDuration, formatRelative, formatTokens, projectName } from "./format";
 
 describe("formatTokens", () => {
   it("scales by magnitude", () => {
@@ -7,6 +7,16 @@ describe("formatTokens", () => {
     expect(formatTokens(1500)).toBe("1.5k");
     expect(formatTokens(9_700_000)).toBe("9.7M");
     expect(formatTokens(2_400_000_000)).toBe("2.40B");
+  });
+});
+
+describe("estimateTokens", () => {
+  it("scales with text length and never undercounts to zero", () => {
+    expect(estimateTokens("")).toBe(0);
+    expect(estimateTokens("abcd")).toBe(1);
+    // Rounds up, so a short but non-empty span never reads as free.
+    expect(estimateTokens("a")).toBe(1);
+    expect(estimateTokens("x".repeat(4000))).toBe(1000);
   });
 });
 
@@ -42,5 +52,17 @@ describe("formatRelative", () => {
 describe("projectName", () => {
   it("takes the last path segment", () => {
     expect(projectName("/Users/x/code/ts/agent-dashboard")).toBe("agent-dashboard");
+  });
+
+  it("ignores trailing slashes", () => {
+    expect(projectName("/Users/x/code/ts/agent-dashboard/")).toBe("agent-dashboard");
+  });
+
+  it("does not depend on $HOME, so it renders alike on server and client", () => {
+    expect(projectName("/Users/x")).toBe("x");
+  });
+
+  it("falls back to the path when there is no segment", () => {
+    expect(projectName("/")).toBe("/");
   });
 });

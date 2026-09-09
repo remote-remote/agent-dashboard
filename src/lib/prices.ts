@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { TokenCounts } from "./types";
+import type { ModelCost, TokenCounts } from "./types";
 
 /** Dollars per million tokens. */
 export interface ModelPrice {
@@ -109,6 +109,8 @@ export function resolvePrice(
 
 export interface Imputation {
   cost: number;
+  /** Per-model split of `cost`; unpriced models are absent, not zero. */
+  byModel: Record<string, ModelCost>;
   /** Models with no price, so the UI can say the figure is partial. */
   unpriced: string[];
 }
@@ -118,6 +120,7 @@ export function imputeCost(
   prices: Record<string, ModelPrice>,
 ): Imputation {
   let cost = 0;
+  const byModel: Record<string, ModelCost> = {};
   const unpriced: string[] = [];
 
   for (const [model, tokens] of Object.entries(tokensByModel)) {
@@ -130,13 +133,15 @@ export function imputeCost(
       }
       continue;
     }
-    cost +=
+    const modelCost =
       (tokens.input * price.input +
         tokens.output * price.output +
         tokens.cacheRead * price.cacheRead +
         tokens.cacheWrite * price.cacheWrite) /
       1_000_000;
+    cost += modelCost;
+    byModel[model] = { dollars: modelCost, imputed: true };
   }
 
-  return { cost, unpriced: unpriced.sort() };
+  return { cost, byModel, unpriced: unpriced.sort() };
 }

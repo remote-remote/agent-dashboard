@@ -47,6 +47,11 @@ export function foldPiRecord(acc: Accumulator, record: unknown): void {
       return;
     }
 
+    case "session_info": {
+      if (typeof rec.name === "string" && rec.name !== "") acc.title = rec.name;
+      return;
+    }
+
     case "model_change": {
       if (typeof rec.modelId === "string" && rec.modelId !== "") {
         acc.models.add(rec.modelId);
@@ -111,6 +116,12 @@ function foldPiMessage(acc: Accumulator, message: Record<string, unknown>): void
       if (cost && typeof cost.total === "number" && Number.isFinite(cost.total)) {
         acc.measuredCost += cost.total;
         acc.hasMeasuredCost = true;
+        if (typeof message.model === "string" && message.model !== "") {
+          acc.measuredCostByModel.set(
+            message.model,
+            (acc.measuredCostByModel.get(message.model) ?? 0) + cost.total,
+          );
+        }
       }
 
       if (Array.isArray(message.content)) {

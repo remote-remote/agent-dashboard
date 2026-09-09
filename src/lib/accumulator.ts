@@ -30,6 +30,8 @@ export interface Accumulator {
   /** Per-model split, so a session that mixed models can be priced correctly. */
   tokensByModel: Map<string, TokenCounts>;
   measuredCost: number;
+  /** Per-model split of the measured dollars, for the model column. */
+  measuredCostByModel: Map<string, number>;
   hasMeasuredCost: boolean;
 
   tools: Map<string, number>;
@@ -84,6 +86,7 @@ export function createAccumulator(
     tokens: emptyTokens(),
     tokensByModel: new Map(),
     measuredCost: 0,
+    measuredCostByModel: new Map(),
     hasMeasuredCost: false,
     tools: new Map(),
     toolErrors: 0,
@@ -212,7 +215,17 @@ export function finalize(
     tokensByModel: Object.fromEntries(
       [...acc.tokensByModel].map(([model, t]) => [model, { ...t }]),
     ),
-    cost: acc.hasMeasuredCost ? { measured: acc.measuredCost } : {},
+    cost: acc.hasMeasuredCost
+      ? {
+          measured: acc.measuredCost,
+          byModel: Object.fromEntries(
+            [...acc.measuredCostByModel].map(([model, dollars]) => [
+              model,
+              { dollars, imputed: false },
+            ]),
+          ),
+        }
+      : {},
     tools: Object.fromEntries([...acc.tools].sort(([a], [b]) => a.localeCompare(b))),
     toolErrors: acc.toolErrors,
     linesAdded: acc.linesAdded,

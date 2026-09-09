@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSessionDetail } from "@/lib/detail";
 import { readFacet } from "@/lib/facet";
-import {
-  formatCost, formatDuration, formatRelative, formatTokens, shortenPath,
-} from "@/lib/format";
+import { formatCost, formatDuration, formatRelative, formatTokens } from "@/lib/format";
+import { shortenPath } from "@/lib/paths";
 import { totalTokens, type Harness } from "@/lib/types";
 import { TurnList } from "@/components/TurnList";
 import { Retro } from "@/components/Retro";
@@ -116,15 +115,21 @@ export default async function SessionPage({
                   {chain.turns.length} turns · {formatTokens(totalTokens(chain.tokens))} tokens
                 </span>
               </summary>
-              <TurnList turns={chain.turns} />
+              <TurnList turns={chain.turns} events={chain.events} />
             </details>
           ))}
         </section>
       )}
 
       <section className="section">
-        <h2>Turns<span className="caveat">one row per response, not per record</span></h2>
-        <TurnList turns={detail.turns} />
+        <h2>
+          Turns
+          <span className="caveat">
+            one row per response; expand for the full detail. ~ marks a token count
+            estimated from text, since neither harness reports usage per block
+          </span>
+        </h2>
+        <TurnList turns={detail.turns} events={detail.events} />
       </section>
     </main>
   );
