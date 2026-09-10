@@ -69,11 +69,21 @@ src/lib/
   status.ts         registry + kill(pid,0) + mtime fallback
   prices.ts         price table and imputation
   query.ts          filters, sorting, totals, facets
+  series.ts         time buckets and breakdowns for the charts
   watcher.ts        fs.watch, debounced
 src/app/
   page.tsx                       server component over the index
+  graphs/page.tsx                the same index, charted
   session/[harness]/[id]/         detail view
   api/events/route.ts            the only route handler: SSE ping
 ```
+
+## Views
+
+`/` is the session list and `/graphs` charts the same filtered set: tokens by kind over time, measured against imputed cost, prompts/turns/tool calls, and breakdowns by project, model and tool. Both read the same search params, so the nav carries the current filters across and either view is bookmarkable.
+
+Charts are inline SVG rendered on the server - no chart library, nothing in the client bundle - and each figure counts in the bucket its session *started* in. The index holds no per-message timeline, so spreading a long session across the buckets it ran through would be an invention.
+
+The range picker offers rolling windows (24h, 7d, 30d) and calendar ones (this month, last month). Calendar windows are cut on local month boundaries, so "this month" means the month you are looking at, not UTC's.
 
 Notes on the two undocumented transcript schemas, including the several places where reading them naively gives wrong numbers, are in [docs/SCHEMA-NOTES.md](docs/SCHEMA-NOTES.md). The design is in [docs/DESIGN.md](docs/DESIGN.md).

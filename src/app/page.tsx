@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { FilterBar } from "@/components/FilterBar";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { RollupStrip } from "@/components/RollupStrip";
@@ -32,10 +34,21 @@ export default async function Page({
   const range = Array.isArray(params.range) ? params.range[0] : params.range;
   const priceTable = index.getPriceTable();
 
+  // The graph view reads the same filters, so carry them across untouched.
+  const qs = new URLSearchParams(
+    Object.entries(params).flatMap(([k, v]) =>
+      v === undefined ? [] : [[k, Array.isArray(v) ? v[0]! : v] as [string, string]],
+    ),
+  );
+
   return (
     <main className="shell">
       <header className="masthead">
         <h1>Agent Dashboard</h1>
+        <nav className="views">
+          <span className="on">Sessions</span>
+          <Link href={qs.size > 0 ? `/graphs?${qs}` : "/graphs"}>Graphs</Link>
+        </nav>
         <span className="sub">
           {all.length} sessions indexed · {totals.working} working now
         </span>

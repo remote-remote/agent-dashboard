@@ -14,11 +14,13 @@ const SEARCH_DEBOUNCE_MS = 250;
  * their own; `replace` keeps tweaking a filter out of the back stack.
  */
 export function FilterBar({
-  filters, facets, range,
+  filters, facets, range, basePath = "/",
 }: {
   filters: Filters;
   facets: FacetCounts;
   range?: string;
+  /** The view the filters navigate within, so the bar works on any page. */
+  basePath?: string;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -35,7 +37,9 @@ export function FilterBar({
       else next.delete(key);
     }
     const qs = next.toString();
-    startTransition(() => router.replace(qs ? `/?${qs}` : "/", { scroll: false }));
+    startTransition(() =>
+      router.replace(qs ? `${basePath}?${qs}` : basePath, { scroll: false }),
+    );
   }
 
   function onSearch(value: string) {
@@ -47,14 +51,14 @@ export function FilterBar({
   function reset() {
     clearTimeout(debounce.current);
     setSearch("");
-    startTransition(() => router.replace("/", { scroll: false }));
+    startTransition(() => router.replace(basePath, { scroll: false }));
   }
 
   return (
     <div className="filters" data-pending={pending || undefined}>
       <form
         method="GET"
-        action="/"
+        action={basePath}
         onSubmit={(e) => {
           e.preventDefault();
           clearTimeout(debounce.current);
@@ -136,6 +140,8 @@ export function FilterBar({
           <option value="24h">Last 24h</option>
           <option value="7d">Last 7 days</option>
           <option value="30d">Last 30 days</option>
+          <option value="month">This month</option>
+          <option value="last-month">Last month</option>
         </select>
 
         <select

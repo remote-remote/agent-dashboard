@@ -14,6 +14,16 @@
   --measured: #4ade80;
   --imputed: #a78bfa;
   --error: #f87171;
+
+  /* Chart marks. Categorical slots are assigned to a measure and never cycled;
+     the two cost marks are the measured/imputed pair stepped for the dark
+     surface, since the text colours above sit outside the mark lightness band. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --mark-measured: #1aa35a;
+  --mark-imputed: #8b5cf6;
   color-scheme: dark;
 }
 
@@ -34,6 +44,13 @@
     --measured: #16a34a;
     --imputed: #7c3aed;
     --error: #dc2626;
+
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --mark-measured: #16a34a;
+    --mark-imputed: #7c3aed;
     color-scheme: light;
   }
 }
@@ -374,4 +391,63 @@ tbody tr:hover td { background: var(--panel-2); }
 @media (max-width: 640px) {
   .ev { grid-template-columns: 1fr; gap: 6px; }
   .ev-meta { flex-direction: row; gap: 10px; }
+}
+
+/* Views */
+.views { display: flex; gap: 10px; font-size: 12.5px; }
+.views a { color: var(--muted); }
+.views a:hover { color: var(--text); }
+.views .on { color: var(--text); border-bottom: 2px solid var(--accent); }
+
+/* Charts */
+.chart-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;
+}
+.chart-panel { padding: 14px; min-width: 0; }
+.chart-panel.wide { grid-column: 1 / -1; }
+.chart-panel header {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.chart-panel h2 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--dim); font-weight: 600; margin: 0;
+}
+.chart-panel header .note { font-size: 11px; color: var(--dim); }
+
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .grid { stroke: var(--border); stroke-width: 1; }
+.chart .axis { fill: var(--dim); font-size: 8px; font-family: inherit; }
+.chart-empty { padding: 32px 0; text-align: center; color: var(--dim); font-size: 12px; }
+
+.legend-swatches {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 12px;
+  margin: 0 0 10px; padding: 0; font-size: 11px; color: var(--muted);
+}
+.legend-swatches li { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+.chart-table { margin-top: 10px; }
+.chart-table summary { cursor: pointer; font-size: 11px; color: var(--dim); }
+.chart-table .table-wrap { margin-top: 8px; max-height: 320px; overflow: auto; }
+
+/* Breakdown rows */
+.breakdown { list-style: none; margin: 0; padding: 0; }
+.breakdown li {
+  display: grid; grid-template-columns: minmax(50px, 110px) minmax(24px, 1fr) auto auto;
+  align-items: center; gap: 8px; padding: 5px 0; font-size: 12.5px;
+  overflow: hidden;
+}
+.breakdown-label {
+  color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.breakdown-label a:hover { color: var(--text); text-decoration: underline; }
+.breakdown-track {
+  display: block; height: 8px; background: var(--panel-2);
+  border-radius: 4px; overflow: hidden;
+}
+.breakdown-bar { display: block; height: 100%; border-radius: 4px; }
+.breakdown-value { color: var(--text); }
+.breakdown-note {
+  font-size: 11px; color: var(--dim); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }

@@ -28,30 +28,63 @@ const HARNESSES = new Set<Harness>(["claude", "pi"]);
 const STATUSES = new Set<SessionStatus>(["working", "idle", "done", "unknown"]);
 const SORTS = new Set<SortKey>(["recent", "tokens", "duration", "cost", "turns"]);
 
-/** Named windows are resolved at parse time so a bookmarked URL stays relative. */
-export const RANGES = {
+/** Rolling windows, in milliseconds back from now. */
+export const ROLLING_RANGES = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
   "30d": 30 * 24 * 60 * 60 * 1000,
 } as const;
 
-export type RangeKey = keyof typeof RANGES;
+/** Calendar windows, cut on local month boundaries rather than by duration. */
+export const CALENDAR_RANGES = ["month", "last-month"] as const;
+
+export type RangeKey = keyof typeof ROLLING_RANGES | (typeof CALENDAR_RANGES)[number];
+
+export interface Window {
+  since?: string;
+  until?: string;
+}
+
+function startOfMonth(year: number, month: number): string {
+  return new Date(year, month, 1).toISOString();
+}
+
+/**
+ * Named windows are resolved at parse time so a bookmarked URL stays relative.
+ * Rolling ranges have no upper bound; calendar ranges are cut in the viewer's
+ * local time, so "this month" means the month they are looking at, not UTC's.
+ */
+export function resolveRange(range: string | undefined, now: number): Window {
+  if (!range) return {};
+
+  const ms = ROLLING_RANGES[range as keyof typeof ROLLING_RANGES];
+  if (ms !== undefined) return { since: new Date(now - ms).toISOString() };
+
+  const today = new Date(now);
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  // `month - 1` on January rolls back to the previous December on its own.
+  if (range === "month") return { since: startOfMonth(year, month) };
+  if (range === "last-month") {
+    return { since: startOfMonth(year, month - 1), until: startOfMonth(year, month) };
+  }
+  return {};
+}
 
 export function parseFilters(params: SearchParams, now = Date.now()): Filters {
   const harness = one(params.harness) as Harness | undefined;
   const status = one(params.status) as SessionStatus | undefined;
   const sort = one(params.sort) as SortKey | undefined;
-  const range = one(params.range) as RangeKey | undefined;
-
-  const windowMs = range ? RANGES[range] : undefined;
+  const window = resolveRange(one(params.range), now);
 
   return {
     harness: harness && HARNESSES.has(harness) ? harness : undefined,
     project: one(params.project),
     model: one(params.model),
     status: status && STATUSES.has(status) ? status : undefined,
-    since: windowMs ? new Date(now - windowMs).toISOString() : one(params.since),
-    until: one(params.until),
+    since: window.since ?? one(params.since),
+    until: window.until ?? one(params.until),
     search: one(params.q),
     sort: sort && SORTS.has(sort) ? sort : "recent",
   };

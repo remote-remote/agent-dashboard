@@ -39,6 +39,23 @@ describe("parseFilters", () => {
     expect(parseFilters({ range: "24h" }, now).since).toBe("2026-09-03T12:00:00.000Z");
   });
 
+  it("cuts this month and last month on local month boundaries", () => {
+    const now = Date.parse("2026-09-10T12:00:00.000Z");
+    const thisMonth = parseFilters({ range: "month" }, now);
+    expect(thisMonth.since).toBe(new Date(2026, 8, 1).toISOString());
+    expect(thisMonth.until).toBeUndefined();
+
+    const lastMonth = parseFilters({ range: "last-month" }, now);
+    expect(lastMonth.since).toBe(new Date(2026, 7, 1).toISOString());
+    expect(lastMonth.until).toBe(new Date(2026, 8, 1).toISOString());
+  });
+
+  it("rolls last month back across the year boundary", () => {
+    const f = parseFilters({ range: "last-month" }, Date.parse("2026-01-15T12:00:00.000Z"));
+    expect(f.since).toBe(new Date(2025, 11, 1).toISOString());
+    expect(f.until).toBe(new Date(2026, 0, 1).toISOString());
+  });
+
   it("takes the first value when a param repeats", () => {
     expect(parseFilters({ harness: ["pi", "claude"] }).harness).toBe("pi");
   });
