@@ -59,6 +59,13 @@ describe("parseFilters", () => {
   it("takes the first value when a param repeats", () => {
     expect(parseFilters({ harness: ["pi", "claude"] }).harness).toBe("pi");
   });
+
+  it("reads every repeated status, dropping unknown and duplicate values", () => {
+    expect(parseFilters({ status: "idle" }).status).toEqual(["idle"]);
+    expect(parseFilters({ status: ["done", "working", "done"] }).status).toEqual(["done", "working"]);
+    expect(parseFilters({ status: ["blocked", "idle"] }).status).toEqual(["idle"]);
+    expect(parseFilters({ status: ["blocked", ""] }).status).toBeUndefined();
+  });
 });
 
 describe("modelFamily", () => {
@@ -85,6 +92,16 @@ describe("query", () => {
     expect(query(rows, parseFilters({ project: "/one" })).map((r) => r.sessionId)).toEqual(["c", "a"]);
     expect(query(rows, parseFilters({ model: "haiku" })).map((r) => r.sessionId)).toEqual(["b"]);
     expect(query(rows, parseFilters({ status: "working" })).map((r) => r.sessionId)).toEqual(["b"]);
+  });
+
+  it("matches any of several statuses", () => {
+    const mixed = [...rows, rollup({ key: "claude:d", sessionId: "d", status: "idle", startedAt: "2026-09-04T00:00:00.000Z" })];
+    const ids = (status: string | string[]) => query(mixed, parseFilters({ status })).map((r) => r.sessionId);
+    expect(ids([])).toEqual(["d", "b", "c", "a"]);
+    expect(ids("idle")).toEqual(["d"]);
+    expect(ids(["idle", "working"])).toEqual(["d", "b"]);
+    expect(ids(["idle", "working", "done"])).toEqual(["d", "b", "c", "a"]);
+    expect(ids("blocked")).toEqual(["d", "b", "c", "a"]);
   });
 
   it("sorts most recent first by default", () => {
