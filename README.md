@@ -84,6 +84,6 @@ src/app/
 
 Charts are inline SVG rendered on the server - no chart library, nothing in the client bundle - and each figure counts in the bucket its session *started* in. The index holds no per-message timeline, so spreading a long session across the buckets it ran through would be an invention.
 
-The range picker offers rolling windows (24h, 7d, 30d) and calendar ones (this month, last month). Calendar windows are cut on local month boundaries, so "this month" means the month you are looking at, not UTC's.
+The status filter takes any number of statuses at once and repeats the `status` search param once per selection. No selection means any status. The range picker offers rolling windows (24h, 7d, 30d) and calendar ones (this month, last month). Calendar windows are cut on local month boundaries, so "this month" means the month you are looking at, not UTC's.
 
 Notes on the two undocumented transcript schemas, including the several places where reading them naively gives wrong numbers, are in [docs/SCHEMA-NOTES.md](docs/SCHEMA-NOTES.md). The design is in [docs/DESIGN.md](docs/DESIGN.md).

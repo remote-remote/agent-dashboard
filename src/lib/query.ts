@@ -8,7 +8,8 @@ export interface Filters {
   project?: string;
   /** Model family, e.g. `opus`, matched against any model on the session. */
   model?: string;
-  status?: SessionStatus;
+  /** Any of these statuses; unset means any status. */
+  status?: SessionStatus[];
   /** Inclusive lower bound on `startedAt`, ISO. */
   since?: string;
   /** Exclusive upper bound on `startedAt`, ISO. */
@@ -22,6 +23,11 @@ export type SearchParams = Record<string, string | string[] | undefined>;
 function one(value: string | string[] | undefined): string | undefined {
   const v = Array.isArray(value) ? value[0] : value;
   return v === undefined || v === "" ? undefined : v;
+}
+
+function many(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  return values.filter((v) => v !== "");
 }
 
 const HARNESSES = new Set<Harness>(["claude", "pi"]);
@@ -74,7 +80,8 @@ export function resolveRange(range: string | undefined, now: number): Window {
 
 export function parseFilters(params: SearchParams, now = Date.now()): Filters {
   const harness = one(params.harness) as Harness | undefined;
-  const status = one(params.status) as SessionStatus | undefined;
+  const status = [...new Set(many(params.status))]
+    .filter((s): s is SessionStatus => STATUSES.has(s as SessionStatus));
   const sort = one(params.sort) as SortKey | undefined;
   const window = resolveRange(one(params.range), now);
 
@@ -82,12 +89,26 @@ export function parseFilters(params: SearchParams, now = Date.now()): Filters {
     harness: harness && HARNESSES.has(harness) ? harness : undefined,
     project: one(params.project),
     model: one(params.model),
-    status: status && STATUSES.has(status) ? status : undefined,
+    status: status.length > 0 ? status : undefined,
     since: window.since ?? one(params.since),
     until: window.until ?? one(params.until),
     search: one(params.q),
     sort: sort && SORTS.has(sort) ? sort : "recent",
   };
+}
+
+/**
+ * Search params rebuilt for the other view. Repeated params such as `status`
+ * keep every value, so a multiselect survives the switch between views.
+ */
+export function carryParams(params: SearchParams): URLSearchParams {
+  return new URLSearchParams(
+    Object.entries(params).flatMap(([key, value]) =>
+      value === undefined
+        ? []
+        : (Array.isArray(value) ? value : [value]).map((v) => [key, v] as [string, string]),
+    ),
+  );
 }
 
 /** `claude-opus-4-8` and `claude-opus-5` both belong to family `opus`. */
@@ -107,7 +128,7 @@ export function modelFamilies(rollup: SessionRollup): string[] {
 function matches(rollup: SessionRollup, filters: Filters): boolean {
   if (filters.harness && rollup.harness !== filters.harness) return false;
   if (filters.project && rollup.project !== filters.project) return false;
-  if (filters.status && rollup.status !== filters.status) return false;
+  if (filters.status && !filters.status.includes(rollup.status)) return false;
 
   if (filters.model && !modelFamilies(rollup).includes(filters.model)) return false;
 
