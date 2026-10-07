@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { facets, modelFamily, parseFilters, query, summarize } from "./query";
+import { carryParams, facets, modelFamily, parseFilters, query, summarize } from "./query";
 import type { SessionRollup } from "./types";
 
 function rollup(over: Partial<SessionRollup> = {}): SessionRollup {
@@ -168,5 +168,27 @@ describe("facets", () => {
       { value: "opus", count: 2 },
       { value: "haiku", count: 1 },
     ]);
+  });
+});
+
+describe("carryParams", () => {
+  it("carries every selected status to the other view", () => {
+    const params = { status: ["idle", "working"], project: "/one" };
+    const qs = carryParams(params);
+
+    expect(qs.getAll("status")).toEqual(["idle", "working"]);
+    expect(`/graphs?${qs}`).toBe("/graphs?status=idle&status=working&project=%2Fone");
+
+    const roundTrip = parseFilters({
+      status: qs.getAll("status"),
+      project: qs.get("project") ?? undefined,
+    });
+    expect(roundTrip.status).toEqual(["idle", "working"]);
+    expect(roundTrip.project).toBe("/one");
+  });
+
+  it("drops undefined params and keeps single values", () => {
+    const qs = carryParams({ sort: "cost", range: undefined });
+    expect([...qs]).toEqual([["sort", "cost"]]);
   });
 });

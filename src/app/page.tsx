@@ -5,7 +5,7 @@ import { LiveRefresh } from "@/components/LiveRefresh";
 import { RollupStrip } from "@/components/RollupStrip";
 import { SessionTable } from "@/components/SessionTable";
 import { getReadyIndex } from "@/lib/index-singleton";
-import { facets, parseFilters, query, summarize, type SearchParams } from "@/lib/query";
+import { carryParams, facets, parseFilters, query, summarize, type SearchParams } from "@/lib/query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,12 +34,8 @@ export default async function Page({
   const range = Array.isArray(params.range) ? params.range[0] : params.range;
   const priceTable = index.getPriceTable();
 
-  // The graph view reads the same filters, so carry them across untouched.
-  const qs = new URLSearchParams(
-    Object.entries(params).flatMap(([k, v]) =>
-      v === undefined ? [] : [[k, Array.isArray(v) ? v[0]! : v] as [string, string]],
-    ),
-  );
+  // The graph view reads the same filters, so carry every value across.
+  const qs = carryParams(params);
 
   return (
     <main className="shell">

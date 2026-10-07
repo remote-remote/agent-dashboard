@@ -6,7 +6,7 @@ import { LiveRefresh } from "@/components/LiveRefresh";
 import { RollupStrip } from "@/components/RollupStrip";
 import { formatCost, formatTokens, projectName } from "@/lib/format";
 import { getReadyIndex } from "@/lib/index-singleton";
-import { facets, parseFilters, query, summarize, type SearchParams } from "@/lib/query";
+import { carryParams, facets, parseFilters, query, summarize, type SearchParams } from "@/lib/query";
 import { bucketize, byModelFamily, groupBy, timeExtent, toolUsage, type Point } from "@/lib/series";
 
 export const runtime = "nodejs";
@@ -64,11 +64,7 @@ export default async function GraphsPage({
   const extent = timeExtent(rows, filters.since, filters.until);
   const { unit, points } = bucketize(rows, extent);
 
-  const qs = new URLSearchParams(
-    Object.entries(params).flatMap(([k, v]) =>
-      v === undefined ? [] : [[k, Array.isArray(v) ? v[0]! : v] as [string, string]],
-    ),
-  );
+  const qs = carryParams(params);
   const listHref = (project: string) => {
     const next = new URLSearchParams(qs);
     next.set("project", project);

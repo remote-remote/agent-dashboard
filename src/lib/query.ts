@@ -97,6 +97,20 @@ export function parseFilters(params: SearchParams, now = Date.now()): Filters {
   };
 }
 
+/**
+ * Search params rebuilt for the other view. Repeated params such as `status`
+ * keep every value, so a multiselect survives the switch between views.
+ */
+export function carryParams(params: SearchParams): URLSearchParams {
+  return new URLSearchParams(
+    Object.entries(params).flatMap(([key, value]) =>
+      value === undefined
+        ? []
+        : (Array.isArray(value) ? value : [value]).map((v) => [key, v] as [string, string]),
+    ),
+  );
+}
+
 /** `claude-opus-4-8` and `claude-opus-5` both belong to family `opus`. */
 export function modelFamily(model: string): string {
   const known = ["opus", "sonnet", "haiku", "fable"];
